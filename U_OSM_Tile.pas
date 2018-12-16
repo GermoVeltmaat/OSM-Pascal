@@ -39,6 +39,7 @@ Type
   Public
     Constructor Create;
     Destructor  Destroy; OVERRIDE;
+    Function    UniqueTileName : String;
 // Create a TOsmTile which contains given Coordinate
     Constructor Create(Lon, Lat : Double; Z : Integer);
 // Create a TOsmTile which contains given TOsmCoordinate
@@ -66,7 +67,17 @@ Type
 
   end;
 
+Function MakeUniqueTileName(TileBase : String; TileX, TileY, TileZoom : integer) : string;
+
 implementation
+
+Function MakeUniqueTileName( TileBase : String;
+                         TileX, TileY, TileZoom : integer) : string;
+begin
+  Result := Format('%s_%d_%d_%d',
+                   [TileBase,TileZoom,TileX,TileY]);
+  End;
+
 
 { TOsmTile }
 Constructor TOsmTile.Create;
@@ -80,6 +91,12 @@ begin
   FreeAndNil(MyArea);
   inherited Destroy;
   end;
+
+Function TOsmTile.UniqueTileName : String;
+begin
+  Result := MakeUniqueTileName(MyTileBase,MyTileX,MyTileY,MyTileZoom);
+  End;
+
 
 Constructor TOsmTile.Create(Lon,Lat : Double; Z : Integer);
 Var
