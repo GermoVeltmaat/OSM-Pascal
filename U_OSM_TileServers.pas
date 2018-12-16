@@ -30,6 +30,9 @@ Function TileSourceInfo(TileName : String) : TTileSource;
 
 implementation
 
+// TODO: check gegevens (zoomlevels, tilesize, name)
+// TODO: aanvullen met backup servers (b.tile..... etc)
+
 Const
   TileSources : Array[1..15] of TTileSource = (
     ( //
