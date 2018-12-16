@@ -34,7 +34,7 @@ implementation
 // TODO: aanvullen met backup servers (b.tile..... etc)
 
 Const
-  TileSources : Array[1..15] of TTileSource = (
+  TileSources : Array[1..11] of TTileSource = (
     ( //
     TileName      : 'GrayScale';
     Description   : 'GrayScale OpenStreetMap Tiles';
@@ -65,16 +65,16 @@ Const
     CachePrefix   : 'Wikimedia';
     TileServer    : 'https://maps.wikimedia.org/osm-intl/';
     FileExtension : '.png';
-    ),( //
-    TileName      : 'OpenCycleMap';
-    Description   : 'OpenCycleMap OpenStreetMap Tiles';
-    MinZoomLevel  : 0;
-    MaxZoomLevel  : 18;
-    TileWidth     : 256;
-    TileHeight    : 256;
-    CachePrefix   : 'OpenCycleMap';
-    TileServer    : 'http://tile.thunderforest.com/cycle/';
-    FileExtension : '.png';
+      //),( //  Api key required
+      //TileName      : 'OpenCycleMap';
+      //Description   : 'OpenCycleMap OpenStreetMap Tiles';
+      //MinZoomLevel  : 0;
+      //MaxZoomLevel  : 18;
+      //TileWidth     : 256;
+      //TileHeight    : 256;
+      //CachePrefix   : 'OpenCycleMap';
+      //TileServer    : 'http://tile.thunderforest.com/cycle/';
+      //FileExtension : '.png';
     ),( //
     TileName      : 'Humanitarian';
     Description   : 'Humanitarian OpenStreetMap Tiles';
@@ -145,36 +145,36 @@ Const
     CachePrefix   : 'StamenToner';
     TileServer    : 'http://a.tile.stamen.com/toner/';
     FileExtension : '.png';
-    ),( //
-    TileName      : 'TransportMap';
-    Description   : 'TransportMap OpenStreetMap Tiles';
-    MinZoomLevel  : 0;
-    MaxZoomLevel  : 18;
-    TileWidth     : 256;
-    TileHeight    : 256;
-    CachePrefix   : 'TransportMap';
-    TileServer    : 'http://tile.thunderforest.com/transport/';
-    FileExtension : '.png';
-    ),( // Api key required
-    TileName      : 'ThunderForestLandscape';
-    Description   : 'ThunderForestLandscape OpenStreetMap Tiles';
-    MinZoomLevel  : 0;
-    MaxZoomLevel  : 18;
-    TileWidth     : 256;
-    TileHeight    : 256;
-    CachePrefix   : 'ThunderForestLandscape';
-    TileServer    : 'http://tile.thunderforest.com/landscape/';
-    FileExtension : '.png';
-    ),( // Api key required
-    TileName      : 'ThunderForestOutdoors';
-    Description   : 'ThunderForestOutdoors OpenStreetMap Tiles';
-    MinZoomLevel  : 0;
-    MaxZoomLevel  : 18;
-    TileWidth     : 256;
-    TileHeight    : 256;
-    CachePrefix   : 'ThunderForestOutdoors';
-    TileServer    : 'http://tile.thunderforest.com/outdoors/';
-    FileExtension : '.png';
+      //),( // Api key required
+      //TileName      : 'TransportMap';
+      //Description   : 'TransportMap OpenStreetMap Tiles';
+      //MinZoomLevel  : 0;
+      //MaxZoomLevel  : 18;
+      //TileWidth     : 256;
+      //TileHeight    : 256;
+      //CachePrefix   : 'TransportMap';
+      //TileServer    : 'http://tile.thunderforest.com/transport/';
+      //FileExtension : '.png';
+      //),( // Api key required
+      //TileName      : 'ThunderForestLandscape';
+      //Description   : 'ThunderForestLandscape OpenStreetMap Tiles';
+      //MinZoomLevel  : 0;
+      //MaxZoomLevel  : 18;
+      //TileWidth     : 256;
+      //TileHeight    : 256;
+      //CachePrefix   : 'ThunderForestLandscape';
+      //TileServer    : 'http://tile.thunderforest.com/landscape/';
+      //FileExtension : '.png';
+      //),( // Api key required
+      //TileName      : 'ThunderForestOutdoors';
+      //Description   : 'ThunderForestOutdoors OpenStreetMap Tiles';
+      //MinZoomLevel  : 0;
+      //MaxZoomLevel  : 18;
+      //TileWidth     : 256;
+      //TileHeight    : 256;
+      //CachePrefix   : 'ThunderForestOutdoors';
+      //TileServer    : 'http://tile.thunderforest.com/outdoors/';
+      //FileExtension : '.png';
     ),( //
     TileName      : 'OpenPtMap';
     Description   : 'OpenPtMap OpenStreetMap Tiles';
