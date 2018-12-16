@@ -9,3 +9,4 @@ Rect		Object voor gebied
 Tile		Object voor OSM-tile
 TileList	Lijst met Tiles
 TileServers	Ophalen tiles van servers
+
