@@ -3,8 +3,9 @@ unit U_OSM_Map;
 interface
 uses
   Classes, SysUtils, Types,
-  Graphics, FPCanvas,
-  U_OSM_Coordinaat, U_OSM_Rect, U_OSM_Tile, U_OSM_TileList;
+  Graphics, FPCanvas, ExtCtrls,
+  U_OSM_Coordinaat, U_OSM_Rect, U_OSM_Tile,
+  U_OSM_MapTileImage, U_OSM_MapTileImageList;
 
 Type
 
@@ -24,11 +25,10 @@ Type
     MapFacLon,
     MapFacLat  : Double;
 
-    MapPicture : TPicture;
     MapWidthDegrees,
     MapHeightDegrees : Double;
 
-    MyTilesList : TTilesList;
+    MyTilesList : TMapTileImageList;
 
     Constructor Create(Soort : String);
     Destructor Destroy; OVERRIDE;
@@ -39,8 +39,12 @@ Type
                          ZoomLevel : Integer;
                          InSize : TSize) : Boolean;
     Function LoadTiles : Boolean;
+
+    Function MTIFor(BaseName : String; x,y,z : Integer) : TOsmMapTileImage;
     end;
 
+Var
+  MapPanel : TComponent;
 implementation
 
 { TOsmMap }
@@ -48,13 +52,11 @@ Constructor TOsmMap.Create(Soort : String);
 begin
   Inherited Create;
   BaseNaam := Soort;
-  MyTilesList := TTilesList.Create;
-  MapPicture := TPicture.Create;
+  MyTilesList := TMapTileImageList.Create;
   end;
 
 Destructor TOsmMap.Destroy;
 begin
-  FreeAndNil(MapPicture);
   While MyTilesList.Count > 0 Do MyTilesList.RemoveTile(0);
   FreeAndNil(MyTilesList);
   Inherited Destroy;
@@ -62,93 +64,45 @@ begin
 
 
 Function TOsmMap.LoadTiles : Boolean;
-// hier gaan we een tile geheel of gedeeltelijk in mappicture plakken
-Procedure PlakTileInMapAt(Tile : TOsmTile; X,Y : Integer);
-Var
-  //FacLon,FacLat : Double;
-  MinLon,MaxLon,MinLat,MaxLat : Double; // posities tile in wcs
-  DCoor : Double; DPix : Integer;
-  SourceRect,DestRect : TRect;
-Begin
-  SourceRect := Rect(0,0,Tile.Picture.Width,Tile.Picture.Height);
-  DestRect := Rect(0,0,Tile.Picture.Width,Tile.Picture.Height);
-// Bewaar randen van tile (wcs)
-  MinLon := Tile.Area.Left;
-  MaxLon := Tile.Area.Right;
-  MinLat := Tile.Area.Bottom;
-  MaxLat := Tile.Area.Top;
-// Kijk of er grenzen zijn en bereken positie in mappic
-// Left
-  DCoor := MinLon - MapRect.Left;
-  DPix := Trunc(Abs(DCoor) / MapFacLon);
-  If DCoor < 0 Then Begin
-    SourceRect.Left := DPix;
-    DestRect.Width := TileSizeWidth - DPix;
-    End
-  Else Begin // Schuif naar rechts op goede positie
-    DestRect.Left := DPix;
-    DestRect.Width := TileSizeWidth;
-    End;
-// Right
-  DCoor := MapRect.Right - MaxLon;
-  DPix := Trunc(Abs(DCoor) / MapFacLon);
-  If DCoor < 0 Then Begin
-    SourceRect.Width := TileSizeWidth - DPix;
-    DestRect.Width := TileSizeWidth - DPix;
-    End;
-// Top
-  DCoor := MapRect.Top - MaxLat;
-  DPix := Trunc(Abs(DCoor) / MapFacLat);
-  If DCoor < 0 Then Begin
-    SourceRect.Top := DPix;
-    DestRect.Height := TileSizeHeight - DPix;
-    End
-  Else Begin // schuif naar beneden op goede positie
-    DestRect.Top := DPix;
-    DestRect.Height := TileSizeHeight;
-    End;
-// Bottom
-  DCoor := MinLat - MapRect.Bottom;
-  DPix := Trunc(Abs(DCoor) / MapFacLat);
-  If DCoor < 0 Then Begin
-    SourceRect.Height := TileSizeHeight - DPix;
-    DestRect.Height := TileSizeHeight - DPix;
-    End;
-
-//Writeln(Format(
-//  '%d,%d:%d,%d => %d,%d:%d,%d',[
-//    SourceRect.Left,SourceRect.Top,SourceRect.Right,SourceRect.Bottom,
-//    DestRect.Left,DestRect.Top,DestRect.Right,DestRect.Bottom
-//    ]));
-
-// Plak tile in pic
-  MapPicture.Bitmap.Canvas.CopyRect(DestRect,Tile.Picture.Bitmap.Canvas,SourceRect);
-  end;
-
 Var
   Minx,Maxx,MinY,MaxY : Integer;
-  Tx,Ty : Integer;
-  Tile : TOsmTile;
+  Tx,Ty,Idx : Integer;
+  FirstX,FirstY,Ox,Oy : Integer;
+  MTI : TOsmMapTileImage;
+
 begin
+// Alle tiles onzichtbaar maken
+  For Idx := 1 to MyTilesList.Count Do
+    TOsmMapTileImage(MyTilesList.Objects[Idx-1]).Visible := False;
+// check welke tiles we nodig hebben
   MinX := MapRect.BottomLeft.TileXForZoom(MapZoom);
   MaxX := MapRect.TopRight.TileXForZoom(MapZoom);//
   MinY := MapRect.TopRight.TileYForZoom(MapZoom); // Y is omgekeerd !!
   MaxY := MapRect.BottomLeft.TileYForZoom(MapZoom);//
 //Writeln(Format('%d..%d %d..%d',[MinX,MaxX,MinY,MaxY]));
+// Pak eerste tile om ofset mee te bepalen
+  MTI := MTIFor(BaseNaam,MinX,MinY,MapZoom);
+// Left
+  FirstX := Trunc((MTI.Tile.Area.Left - MapRect.Left) / MTI.Tile.LonPerPixel);
+// Top (y werkt omgekeerd !)
+  FirstY := Trunc((MapRect.Top - MTI.Tile.Area.Top) / MTI.Tile.LatPerPixel);
+
+// Reset positie eerste x tile
+  Ox := FirstX;
   For Tx := MinX To MaxX Do Begin
+// reset positie eerste y tile
+    Oy := FirstY;
     For Ty := MinY To MaxY Do Begin
-      Tile := TOsmTile.Create(Tx,Ty,MapZoom);
-      Tile.TryToLoad(BaseNaam);
-      If Tile.Loaded in [lsDisk,lsWeb] Then Begin
-        PlakTileInMapAt(Tile,Tx,Ty);
-        FreeAndNil(Tile);
-        End
-      Else Begin
-        FreeAndNil(Tile);
-        Result := False;
-        Exit;
-        End;
+      // pak (of maak) map-tile-image
+      MTI := MTIFor(BaseNaam,tx,ty,MapZoom);
+
+      Mti.Left := Ox;
+      Mti.Top := Oy;
+      Mti.Visible := True;
+// TODO: tilegroote gebruiken
+      Inc(Oy,256);
       End;
+    Inc(Ox,256);
     End;
   Result := True;
   End;
@@ -159,13 +113,12 @@ Var
   MidPoint : TOsmCoordinate;
   Start : TOsmTile;
 begin
-  MapPicture.Bitmap.SetSize(InSize.Width,InSize.Height);
 // Bereken middelpunt
   MidPoint := Area.MidPoint;
 // uitzoeken bij welke zoom het hele gebied erin past
   MapZoom := MaxZoom;
   Repeat
-    Start := TOsmTile.Create(MidPoint.Longitude,MidPoint.Latitude,MapZoom);
+    Start := TOsmTile.Create('',MidPoint,MapZoom);
     MapFacLon := Start.LonPerPixel;
     MapFacLat := Start.LatPerPixel;
     FreeAndNil(Start);
@@ -192,10 +145,9 @@ Function TOsmMap.MapForPoint( MidPoint : TOsmCoordinate;
 Var
   Start : TOsmTile;
 begin
-  MapPicture.Bitmap.SetSize(InSize.Width,InSize.Height);
   MapZoom := ZoomLevel;
 // Maak proeftile voor factoren (Vooral voor Y !)
-  Start := TOsmTile.Create(MidPoint.Longitude,MidPoint.Latitude,ZoomLevel);
+  Start := TOsmTile.Create('',MidPoint,ZoomLevel);
   MapFacLon := Start.LonPerPixel;
   MapFacLat := Start.LatPerPixel;
   FreeAndNil(Start);
@@ -207,6 +159,38 @@ begin
 // nu de tiles laden
   LoadTiles;
   Result := True;
+  end;
+
+// Geeft MapTileImage voor opgegeven waarden
+{  Zoekt of er al een MapTileImage is? Zo ja => geeft die
+                                       Zo nee => maakt nieuwe en geeft die
+
+  }
+Function TOsmMap.MTIFor( BaseName : String;
+                         x, y, z : Integer) : TOsmMapTileImage;
+Var
+  Naam : String;
+  MTI : TOsmMapTileImage;
+  NewTile : TOsmTile;
+begin
+  Naam := MakeUniqueTileName(BaseName,x,y,z);
+  MTI := MyTilesList.ZoekTile(Naam);
+  If MTI = nil Then Begin
+// New tile maken
+    NewTile := TOsmTile.Create(BaseName,x,y,z);
+// TODO: nu laden, later eigen thread e.d.
+    //NewTile.TryToLoad();
+
+// maak image met tile
+    MTI := TOsmMapTileImage.CreateForTile(MapPanel,NewTile);
+// Vertel Tile waar het z'n plaatje mag laten verwerken
+    NewTile.TileLoaded := @MTI.UpdatePicture;
+// Start laden tile
+    NewTile.LoadASynced;
+// Zet in lijst
+    MyTilesList.AddTile(MTI);
+    End;
+  Result := MTI;
   end;
 
 end.

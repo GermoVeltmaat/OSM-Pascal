@@ -14,16 +14,23 @@ Const
    DefaultTileSource : String = 'GrayScale';
 
 Type
+  //TLoadTileThread = class;
+
   TLoadState = (lsNone, lsBusy, lsError, lsWeb, lsDisk);
   TLoadStates = Set Of TLoadState;
+  TUpdatePicture = Procedure of Object;
 
   { TOsmTile }
   TOsmTile = class
+  Private
     MyTileZoom,
     MyTileX,
     MyTileY : Integer;
 
     MyArea : TOsmRect;
+
+    FLoadTileThread : TThread; // TLoadTileThread;
+    FUpdatePicture : TUpdatePicture;
   Const
     MyTileBase   : String = '';
     MyTileHeight : Integer = 256;
@@ -32,6 +39,8 @@ Type
     MyLoaded   : TLoadState;
     MyPicture  : TPicture;
     MyBirth    : TDateTime;
+    Procedure   LoadResource(I : Integer);
+
     Function    LoadFromWeb(Basis : String) : Boolean;
 
     Procedure   SaveToCache;
@@ -41,11 +50,11 @@ Type
     Destructor  Destroy; OVERRIDE;
     Function    UniqueTileName : String;
 // Create a TOsmTile which contains given Coordinate
-    Constructor Create(Lon, Lat : Double; Z : Integer);
+    Constructor Create(Basis : String; Lon, Lat : Double; Z : Integer);
 // Create a TOsmTile which contains given TOsmCoordinate
-    Constructor Create(Position : TOsmCoordinate; Z : Integer);
+    Constructor Create(Basis : String; Position : TOsmCoordinate; Z : Integer);
 // Create a TOsmTile for given Tile-index
-    Constructor Create(x,y,z : Integer);
+    Constructor Create(Basis : String; x,y,z : Integer);
 
 // Information Functions
 // Amount of degrees in Long-direction for 1 pixel
@@ -55,15 +64,17 @@ Type
 //   Varies for all Y-s
     Function    LatPerPixel : Double;
 
-// Load Tile synchronously
-    Function    TryToLoad(Basis : String;
-                          UseCache : Boolean = True;
-                          DoSaveToCache : Boolean = True ) : Boolean;
-// TODO: load asynchroon
+// Load Tile (synchronously)
+    Function    TryToLoad( UseCache : Boolean = True;
+                           DoSaveToCache : Boolean = True ) : Boolean;
+// TODO: load asynchroon (uses thread to call TryToLoad)
+    Procedure   LoadASynced;
+    Procedure   UpdateTile;
 // Load Tile asynchronously
     Property Picture : TPicture Read MyPicture;
     Property Area : TOsmRect Read MyArea;
     Property Loaded : TLoadState Read MyLoaded;
+    Property TileLoaded : TUpdatePicture Read FUpdatePicture Write FUpdatePicture;
 
   end;
 
@@ -79,6 +90,45 @@ begin
   End;
 
 
+{ TLoadTileThread }
+Type
+  TLoadTileThread = class(TThread)
+  private
+    FOwnerTile : TOsmTile;
+    procedure UpdateTile;
+  protected
+    procedure Execute; override;
+  public
+    Constructor Create(Owner : TOsmTile);
+    end;
+
+Constructor TLoadTileThread.Create(Owner : TOsmTile);
+begin
+  inherited Create(True);
+  FreeOnTerminate := True;
+  FOwnerTile := Owner;
+  Start;
+  end;
+
+procedure TLoadTileThread.UpdateTile;
+begin
+  FOwnerTile.UpdateTile;
+  end;
+
+procedure TLoadTileThread.Execute;
+Var
+  Tries : Integer = 10;
+begin
+  Repeat
+    Dec(Tries);
+    until FOwnerTile.TryToLoad Or
+          (Tries < 1);
+  Synchronize(@UpdateTile);
+  end;
+
+
+
+
 { TOsmTile }
 Constructor TOsmTile.Create;
 begin
@@ -87,6 +137,7 @@ begin
 
 Destructor TOsmTile.Destroy;
 begin
+  If FLoadTileThread <> nil Then FLoadTileThread.Terminate;
   If MyPicture <> nil Then FreeAndNil(MyPicture);
   FreeAndNil(MyArea);
   inherited Destroy;
@@ -98,11 +149,12 @@ begin
   End;
 
 
-Constructor TOsmTile.Create(Lon,Lat : Double; Z : Integer);
+Constructor TOsmTile.Create(Basis : String; Lon,Lat : Double; Z : Integer);
 Var
   Start : TOsmCoordinate;
 begin
   Inherited Create;
+  MyTileBase := Basis;
   MyTileZoom := Z;
 
   Start := TOsmCoordinate.CreateByValues(Lon,Lat);
@@ -111,27 +163,46 @@ begin
   FreeAndNil(Start);
 
   MyArea := TOsmRect.CreateForTile(MyTileX,MyTileY,MyTileZoom);
+
+  LoadResource(1);
   end;
 
-Constructor TOsmTile.Create(Position : TOsmCoordinate; Z : Integer);
+Constructor TOsmTile.Create(Basis : String; Position : TOsmCoordinate; Z : Integer);
 begin
   Inherited Create;
+  MyTileBase := Basis;
   MyTileZoom := Z;
 
   MyTileX := Position.TileXForZoom(MyTileZoom);
   MyTileY := Position.TileYForZoom(MyTileZoom);
 
   MyArea := TOsmRect.CreateForTile(MyTileX,MyTileY,MyTileZoom);
+
+  LoadResource(2);
   end;
 
-Constructor TOsmTile.Create(x, y, z : Integer);
+Constructor TOsmTile.Create(Basis : String; x, y, z : Integer);
 begin
   Inherited Create;
+  MyTileBase := Basis;
   MyTileZoom := Z;
   MyTileX := X;
   MyTileY := Y;
   MyArea := TOsmRect.CreateForTile(MyTileX,MyTileY,MyTileZoom);
+  LoadResource(4);
   end;
+
+Procedure TOsmTile.LoadResource(I : Integer);
+begin
+  If MyPicture = nil Then
+    MyPicture := TPicture.Create;
+  Case I of
+    1 : MyPicture.LoadFromResourceName(HINSTANCE,'texture01');
+    2 : MyPicture.LoadFromResourceName(HINSTANCE,'texture02');
+    3 : MyPicture.LoadFromResourceName(HINSTANCE,'texture03');
+    4 : MyPicture.LoadFromResourceName(HINSTANCE,'texture04');
+    End;
+  End;
 
 Function TOsmTile.LonPerPixel : Double;
 begin
@@ -143,20 +214,32 @@ begin
   Result := (MyArea.Top-MyArea.Bottom) / MyTileHeight;
   end;
 
+// Thread om te laden
+Procedure TOsmTile.LoadASynced;
+begin
+  FLoadTileThread := TLoadTileThread.Create(Self);
+  end;
 
-Function TOsmTile.TryToLoad( Basis : String;
-                             UseCache : Boolean;
+Procedure TOsmTile.UpdateTile;
+begin
+  If Assigned(FUpdatePicture) Then Begin
+    FUpdatePicture;
+    End;
+  end;
+
+// kijk waar we een plaatje kunnen krijgen (cache of web)
+Function TOsmTile.TryToLoad( UseCache : Boolean;
                              DoSaveToCache : Boolean) : Boolean;
 begin
   MyLoaded := lsBusy;
   If UseCache Then Begin
-    If LoadFromCache(Basis) Then Begin
+    If LoadFromCache(MyTileBase) Then Begin
       Result := True;
       MyLoaded := lsDisk;
       Exit;
       End;
     end;
-  If LoadFromWeb(Basis) Then Begin
+  If LoadFromWeb(MyTileBase) Then Begin
     If DoSaveToCache Then
       SaveToCache;
     MyLoaded := lsWeb;
@@ -168,9 +251,9 @@ begin
     End;
   end;
 
-
 Function TOsmTile.LoadFromWeb(Basis : String) : Boolean;
 begin
+  Result := False;
   MyTileBase := Basis;
   MyPicture := FetchTileFromServer(MyTileBase,MyTileX,MyTileY,MyTileZoom);
   If MyPicture <> nil Then Begin
@@ -178,7 +261,6 @@ begin
     Result := True;
     end;
   end;
-
 
 // Helper functions for writing/reading tiles in cache
 Function CreateCachePathFor(Basis : String; x,y,z : Integer) : String;

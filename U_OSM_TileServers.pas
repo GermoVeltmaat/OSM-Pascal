@@ -241,6 +241,7 @@ begin
     Result := TPicture.Create;
     Result.LoadFromStream(LMemoryStream);
   Except
+    Result := nil;
     end;
   FreeAndNil(LMemoryStream);
   end;
